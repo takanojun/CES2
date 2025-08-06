@@ -1,0 +1,6 @@
+node_modules/
+dist/
+release/
+appdata/*
+!appdata/.gitkeep
+!appdata/config.example.json

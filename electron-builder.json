@@ -1,0 +1,8 @@
+{
+  "appId": "jp.example.pgace",
+  "productName": "PgAce",
+  "files": ["dist/**", "packages/main/**", "packages/preload/**", "node_modules/**"],
+  "directories": { "output": "release" },
+  "win": { "target": ["dir", "zip"], "artifactName": "PgAce-${version}-${os}-${arch}.${ext}" },
+  "extraResources": [{ "from": "appdata", "to": "appdata" }]
+}
