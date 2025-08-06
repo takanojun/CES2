@@ -1,0 +1,28 @@
+{
+  "name": "pgace",
+  "version": "0.1.0",
+  "main": "packages/main/dist/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "concurrently -k \"tsc -w -p packages\" \"vite --config packages/renderer/vite.config.ts\" \"electron .\"",
+    "build": "vite build --config packages/renderer/vite.config.ts && tsc -p packages && electron-builder --dir",
+    "dist:zip": "vite build --config packages/renderer/vite.config.ts && tsc -p packages && electron-builder -w zip",
+    "test": "tsc -p packages"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "concurrently": "^8.0.0",
+    "electron": "^27.0.0",
+    "electron-builder": "^24.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "pg": "^8.11.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}

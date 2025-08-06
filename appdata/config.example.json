@@ -1,0 +1,4 @@
+{
+  "profiles": [],
+  "settings": { "maxHistory": 500, "lazyLoadThreshold": 1000, "chunkSizeDefault": 500 }
+}
