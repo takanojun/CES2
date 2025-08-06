@@ -9,3 +9,8 @@ export interface DbConnectParams {
 export interface DbQueryParams {
   sql: string;
 }
+
+export interface HistoryEntry {
+  timestamp: string;
+  sql: string;
+}

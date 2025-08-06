@@ -20,10 +20,20 @@ const App: React.FC = () => {
     }
   };
 
+  const handleHistory = async () => {
+    try {
+      const history = await window.pgace.historyList();
+      setResult(JSON.stringify(history, null, 2));
+    } catch (e: any) {
+      setResult(e.message);
+    }
+  };
+
   return (
     <div>
       <h1>PgAce</h1>
       <button onClick={handleTest}>Test Query</button>
+      <button onClick={handleHistory}>Show History</button>
       <pre>{result}</pre>
     </div>
   );

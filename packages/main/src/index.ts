@@ -1,10 +1,27 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { Client } from 'pg';
-import type { DbConnectParams, DbQueryParams } from './ipc';
+import type { DbConnectParams, DbQueryParams, HistoryEntry } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
 let db: any = null;
+
+const APPDATA_DIR = path.join(app.getAppPath(), 'appdata');
+const HISTORY_FILE = path.join(APPDATA_DIR, 'history.log');
+const HISTORY_MAX = 500;
+
+const appendHistory = async (sql: string) => {
+  const entry: HistoryEntry = { timestamp: new Date().toISOString(), sql };
+  await fs.mkdir(APPDATA_DIR, { recursive: true });
+  await fs.appendFile(HISTORY_FILE, JSON.stringify(entry) + '\n', 'utf8');
+  const data = await fs.readFile(HISTORY_FILE, 'utf8');
+  const lines = data.trimEnd().split('\n');
+  if (lines.length > HISTORY_MAX) {
+    const latest = lines.slice(-HISTORY_MAX);
+    await fs.writeFile(HISTORY_FILE, latest.join('\n') + '\n', 'utf8');
+  }
+};
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -52,5 +69,19 @@ ipcMain.handle('db.connect', async (_event, params: DbConnectParams) => {
 ipcMain.handle('db.query', async (_event, params: DbQueryParams) => {
   if (!db) throw new Error('not connected');
   const res = await db.query(params.sql);
+  await appendHistory(params.sql);
   return res.rows;
+});
+
+ipcMain.handle('history.list', async () => {
+  try {
+    const data = await fs.readFile(HISTORY_FILE, 'utf8');
+    return data
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  } catch {
+    return [];
+  }
 });
