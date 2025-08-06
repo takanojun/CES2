@@ -4,10 +4,10 @@
   "main": "packages/main/dist/index.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "concurrently -k \"tsc -w -p packages\" \"vite --config packages/renderer/vite.config.ts\" \"electron .\"",
-    "build": "vite build --config packages/renderer/vite.config.ts && tsc -p packages && electron-builder --dir",
-    "dist:zip": "vite build --config packages/renderer/vite.config.ts && tsc -p packages && electron-builder -w zip",
-    "test": "tsc -p packages"
+    "dev": "tsc -p packages/main && tsc -p packages/preload && concurrently -k \"tsc -w -p packages/main\" \"tsc -w -p packages/preload\" \"vite --config packages/renderer/vite.config.ts\" \"electron .\"",
+    "build": "vite build --config packages/renderer/vite.config.ts && tsc -p packages/main && tsc -p packages/preload && electron-builder --dir",
+    "dist:zip": "vite build --config packages/renderer/vite.config.ts && tsc -p packages/main && tsc -p packages/preload && electron-builder -w zip",
+    "test": "tsc -p packages/main && tsc -p packages/preload"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
