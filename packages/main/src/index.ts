@@ -1,10 +1,10 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import { Client } from 'pg';
-import type { DbConnectParams, DbQueryParams } from '../shared/src/ipc';
+import type { DbConnectParams, DbQueryParams } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
-let db: Client | null = null;
+let db: any = null;
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
