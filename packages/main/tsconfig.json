@@ -3,7 +3,8 @@
   "compilerOptions": {
     "composite": true,
     "types": ["node", "electron"],
-    "outDir": "dist"
+    "outDir": "dist",
+    "rootDir": "src"
   },
   "include": ["src/**/*"],
   "references": [{ "path": "../shared" }]
