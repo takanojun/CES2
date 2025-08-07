@@ -19,3 +19,8 @@ export interface SqlFile {
   name: string;
   content: string;
 }
+
+export interface SqlFolder {
+  dir: string;
+  files: SqlFile[];
+}
