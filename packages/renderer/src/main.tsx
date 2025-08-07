@@ -14,6 +14,11 @@ interface HistoryEntry {
   sql: string;
 }
 
+interface SqlFile {
+  name: string;
+  content: string;
+}
+
 const App: React.FC = () => {
   const [host, setHost] = React.useState('localhost');
   const [port, setPort] = React.useState('5432');
@@ -37,6 +42,8 @@ const App: React.FC = () => {
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
   const [isFormatted, setIsFormatted] = React.useState(false);
   const [profiles, setProfiles] = React.useState<DbConnectParams[]>([]);
+  const [tables, setTables] = React.useState<string[]>([]);
+  const [sqlFiles, setSqlFiles] = React.useState<SqlFile[]>([]);
   const connDialogRef = React.useRef<HTMLDialogElement>(null);
   const historyDialogRef = React.useRef<HTMLDialogElement>(null);
 
@@ -174,6 +181,20 @@ const App: React.FC = () => {
     a.click();
     URL.revokeObjectURL(url);
   }, [rows]);
+
+  const loadTables = React.useCallback(async () => {
+    try {
+      const list = await window.pgace.listTables('public');
+      setTables(list);
+    } catch (e: any) {
+      setStatus(e.message);
+    }
+  }, []);
+
+  const handleOpenFolder = React.useCallback(async () => {
+    const files = await window.pgace.openSqlFolder();
+    setSqlFiles(files);
+  }, []);
 
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -366,6 +387,28 @@ const App: React.FC = () => {
     >
       <h1>PgAce</h1>
       <button onClick={openConnectionModal}>Change Connection</button>
+      <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ width: '200px' }}>
+          <h3>DB Explorer</h3>
+          <button onClick={loadTables}>Reload</button>
+          <ul>
+            {tables.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </div>
+        <div style={{ width: '200px' }}>
+          <h3>SQL Explorer</h3>
+          <button onClick={handleOpenFolder}>Open Folder</button>
+          <ul>
+            {sqlFiles.map((f, idx) => (
+              <li key={idx}>
+                <button onClick={() => setSql(f.content)}>{f.name}</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
       <div
         style={{
           display: 'flex',

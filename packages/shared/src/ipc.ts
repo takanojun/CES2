@@ -2,7 +2,9 @@ export type IpcChannel =
   | 'db.connect'
   | 'db.query'
   | 'history.list'
-  | 'profile.list';
+  | 'profile.list'
+  | 'meta.tables'
+  | 'fs.openFolder';
 
 export interface DbConnectParams {
   host: string;
@@ -19,4 +21,9 @@ export interface DbQueryParams {
 export interface HistoryEntry {
   timestamp: string;
   sql: string;
+}
+
+export interface SqlFile {
+  name: string;
+  content: string;
 }

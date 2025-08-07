@@ -14,3 +14,8 @@ export interface HistoryEntry {
   timestamp: string;
   sql: string;
 }
+
+export interface SqlFile {
+  name: string;
+  content: string;
+}
