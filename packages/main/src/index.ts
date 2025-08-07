@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs/promises';
@@ -87,6 +87,26 @@ const createWindow = () => {
     // during development, load the Vite dev server
     mainWindow.loadURL('http://localhost:5173');
   }
+
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Connect...',
+          click: () => {
+            mainWindow?.webContents.send('open-connect');
+          }
+        }
+      ]
+    }
+  ];
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    mainWindow?.webContents.send('open-connect');
+  });
 };
 
 app.whenReady().then(() => {

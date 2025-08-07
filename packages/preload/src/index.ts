@@ -16,7 +16,12 @@ const api = {
   listTables: (schema: string) =>
     ipcRenderer.invoke('meta.tables', { schema }) as Promise<string[]>,
   openSqlFolder: (dir?: string) =>
-    ipcRenderer.invoke('fs.openFolder', dir) as Promise<SqlFolder>
+    ipcRenderer.invoke('fs.openFolder', dir) as Promise<SqlFolder>,
+  onOpenConnect: (callback: () => void) => {
+    const wrapped = () => callback();
+    ipcRenderer.on('open-connect', wrapped);
+    return () => ipcRenderer.off('open-connect', wrapped);
+  }
 };
 
 contextBridge.exposeInMainWorld('pgace', api);

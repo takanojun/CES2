@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import ConnectDialog from './ConnectDialog';
 
 interface SqlFile {
   name: string;
@@ -173,6 +174,14 @@ const PanelWrapper: React.FC<{ title: string; children: React.ReactNode }> = ({
 
 const App: React.FC = () => {
   const [rows, setRows] = React.useState<any[]>([]);
+  const [connectOpen, setConnectOpen] = React.useState(true);
+
+  React.useEffect(() => {
+    const dispose = window.pgace.onOpenConnect(() => setConnectOpen(true));
+    return () => {
+      dispose && dispose();
+    };
+  }, []);
 
   return (
     <ResultContext.Provider value={{ rows, setRows }}>
@@ -201,6 +210,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
+      <ConnectDialog open={connectOpen} onClose={() => setConnectOpen(false)} />
     </ResultContext.Provider>
   );
 };
