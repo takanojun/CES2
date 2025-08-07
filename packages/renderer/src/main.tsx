@@ -151,25 +151,29 @@ const App: React.FC = () => {
     };
     return (
       <div style={{ marginTop: '1rem', overflow: 'auto' }}>
-        <table
-          style={{ borderCollapse: 'collapse', userSelect: 'none' }}
-        >
-          <colgroup>
-            <col style={{ width: 40 }} />
-            {columns.map((c) => (
-              <col key={c} style={{ width: colWidths[c] ?? 150 }} />
-            ))}
-          </colgroup>
+        <table style={{ borderCollapse: 'collapse', userSelect: 'none' }}>
           <thead>
             <tr>
-              <th style={{ border: '1px solid #ccc', background: '#eee' }} />
+              <th
+                style={{
+                  border: '1px solid #ccc',
+                  background: '#eee',
+                  width: 40,
+                  minWidth: 40
+                }}
+              />
               {columns.map((c, idx) => (
                 <th
                   key={c}
                   style={{
                     position: 'relative',
                     border: '1px solid #ccc',
-                    background: isColSelected(idx) ? '#b3d7ff' : '#eee'
+                    background: isColSelected(idx) ? '#b3d7ff' : '#eee',
+                    width: colWidths[c] ?? 150,
+                    minWidth: colWidths[c] ?? 150,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                   }}
                   onMouseDown={(e) => handleColMouseDown(e, idx)}
                   onMouseEnter={() => handleColMouseEnter(idx)}
@@ -199,6 +203,8 @@ const App: React.FC = () => {
                     background: '#eee',
                     textAlign: 'right',
                     padding: '0 4px',
+                    width: 40,
+                    minWidth: 40,
                     backgroundColor: isRowSelected(idx) ? '#b3d7ff' : '#eee'
                   }}
                   onMouseDown={() => handleRowMouseDown(idx)}
@@ -212,6 +218,11 @@ const App: React.FC = () => {
                     style={{
                       border: '1px solid #ccc',
                       padding: '0 4px',
+                      width: colWidths[c] ?? 150,
+                      minWidth: colWidths[c] ?? 150,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                       backgroundColor:
                         isRowSelected(idx) || isColSelected(cIdx)
                           ? '#d7ebff'
