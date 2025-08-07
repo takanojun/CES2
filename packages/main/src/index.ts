@@ -1,9 +1,14 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs/promises';
 import { Client } from 'pg';
-import type { DbConnectParams, DbQueryParams, HistoryEntry } from './ipc';
+import type {
+  DbConnectParams,
+  DbQueryParams,
+  HistoryEntry,
+  SqlFile
+} from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
 let db: any = null;
@@ -133,4 +138,28 @@ ipcMain.handle('history.list', async () => {
   } catch {
     return [];
   }
+});
+ipcMain.handle('meta.tables', async (_event, params: { schema: string }) => {
+  if (!db) throw new Error('not connected');
+  const res = await db.query(
+    'SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name',
+    [params.schema]
+  );
+  return res.rows.map((r: any) => r.table_name as string);
+});
+ipcMain.handle('fs.openFolder', async () => {
+  const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+  if (result.canceled || result.filePaths.length === 0) return [];
+  const dir = result.filePaths[0];
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files: SqlFile[] = await Promise.all(
+    entries
+      .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.sql'))
+      .map(async (e) => {
+        const p = path.join(dir, e.name);
+        const content = await fs.readFile(p, 'utf8');
+        return { name: e.name, content };
+      })
+  );
+  return files;
 });
