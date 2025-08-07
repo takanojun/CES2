@@ -11,6 +11,39 @@ let db: any = null;
 const APPDATA_DIR = path.join(app.getAppPath(), 'appdata');
 const HISTORY_FILE = path.join(APPDATA_DIR, 'history.log');
 const HISTORY_MAX = 500;
+const CONFIG_FILE = path.join(APPDATA_DIR, 'config.json');
+
+interface Config {
+  profiles: DbConnectParams[];
+}
+
+const loadConfig = async (): Promise<Config> => {
+  try {
+    const data = await fs.readFile(CONFIG_FILE, 'utf8');
+    return JSON.parse(data) as Config;
+  } catch {
+    return { profiles: [] };
+  }
+};
+
+const saveConfig = async (cfg: Config) => {
+  await fs.mkdir(APPDATA_DIR, { recursive: true });
+  await fs.writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8');
+};
+
+const saveProfile = async (p: DbConnectParams) => {
+  const cfg = await loadConfig();
+  const idx = cfg.profiles.findIndex(
+    (x) =>
+      x.host === p.host &&
+      x.port === p.port &&
+      x.database === p.database &&
+      x.user === p.user
+  );
+  if (idx >= 0) cfg.profiles[idx] = p;
+  else cfg.profiles.push(p);
+  await saveConfig(cfg);
+};
 
 const appendHistory = async (sql: string) => {
   const entry: HistoryEntry = { timestamp: new Date().toISOString(), sql };
@@ -73,6 +106,7 @@ ipcMain.handle('db.connect', async (_event, params: DbConnectParams) => {
     password: params.password
   });
   await db.connect();
+  await saveProfile(params);
   return 'connected';
 });
 
@@ -81,6 +115,11 @@ ipcMain.handle('db.query', async (_event, params: DbQueryParams) => {
   const res = await db.query(params.sql);
   await appendHistory(params.sql);
   return res.rows;
+});
+
+ipcMain.handle('profile.list', async () => {
+  const cfg = await loadConfig();
+  return cfg.profiles;
 });
 
 ipcMain.handle('history.list', async () => {

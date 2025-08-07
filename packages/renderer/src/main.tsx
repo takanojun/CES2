@@ -1,6 +1,14 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+interface DbConnectParams {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+}
+
 interface HistoryEntry {
   timestamp: string;
   sql: string;
@@ -28,15 +36,25 @@ const App: React.FC = () => {
   const [isSelectingCol, setIsSelectingCol] = React.useState(false);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
   const [isFormatted, setIsFormatted] = React.useState(false);
+  const [profiles, setProfiles] = React.useState<DbConnectParams[]>([]);
+  const connDialogRef = React.useRef<HTMLDialogElement>(null);
+  const historyDialogRef = React.useRef<HTMLDialogElement>(null);
 
   const loadHistory = React.useCallback(async () => {
     const list = await window.pgace.historyList();
     setHistory(list);
   }, []);
 
+  const loadProfiles = React.useCallback(async () => {
+    const list = await window.pgace.profileList();
+    setProfiles(list);
+  }, []);
+
   React.useEffect(() => {
     void loadHistory();
-  }, [loadHistory]);
+    void loadProfiles();
+    connDialogRef.current?.showModal();
+  }, [loadHistory, loadProfiles]);
 
   const handleConnect = React.useCallback(async () => {
     try {
@@ -48,34 +66,77 @@ const App: React.FC = () => {
         password
       });
       setStatus('Connected');
+      await loadProfiles();
+      connDialogRef.current?.close();
     } catch (e: any) {
       setStatus(e.message);
     }
-  }, [host, port, database, user, password]);
+  }, [host, port, database, user, password, loadProfiles]);
 
-  const handleQuery = React.useCallback(async () => {
-    try {
-      const r = await window.pgace.query({ sql });
-      setRows(r);
-      const cols = Object.keys(r[0] ?? {});
-      setColWidths((prev) => {
-        const next: Record<string, number> = { ...prev };
-        cols.forEach((c) => {
-          if (!(c in next)) next[c] = 150;
+  const handleConnectProfile = React.useCallback(
+    async (p: DbConnectParams) => {
+      setHost(p.host);
+      setPort(String(p.port));
+      setDatabase(p.database);
+      setUser(p.user);
+      setPassword(p.password);
+      try {
+        await window.pgace.connect(p);
+        setStatus('Connected');
+        await loadProfiles();
+        connDialogRef.current?.close();
+      } catch (e: any) {
+        setStatus(e.message);
+      }
+    },
+    [loadProfiles]
+  );
+
+  const handleQuery = React.useCallback(
+    async (overrideSql?: string) => {
+      const execSql = overrideSql ?? sql;
+      try {
+        const r = await window.pgace.query({ sql: execSql });
+        if (overrideSql !== undefined) setSql(overrideSql);
+        setRows(r);
+        const cols = Object.keys(r[0] ?? {});
+        setColWidths((prev) => {
+          const next: Record<string, number> = { ...prev };
+          cols.forEach((c) => {
+            if (!(c in next)) next[c] = 150;
+          });
+          return next;
         });
-        return next;
-      });
-      setRowSelection(null);
-      setColSelection(null);
-      setStatus(`${r.length} rows`);
-      await loadHistory();
-    } catch (e: any) {
-      setStatus(e.message);
-      setRows([]);
-      setRowSelection(null);
-      setColSelection(null);
-    }
-  }, [sql, loadHistory]);
+        setRowSelection(null);
+        setColSelection(null);
+        setStatus(`${r.length} rows`);
+        await loadHistory();
+      } catch (e: any) {
+        setStatus(e.message);
+        setRows([]);
+        setRowSelection(null);
+        setColSelection(null);
+      }
+    },
+    [sql, loadHistory]
+  );
+
+  const handleRunHistory = React.useCallback(
+    (entry: HistoryEntry) => {
+      void handleQuery(entry.sql);
+      historyDialogRef.current?.close();
+    },
+    [handleQuery]
+  );
+
+  const openConnectionModal = React.useCallback(() => {
+    connDialogRef.current?.showModal();
+  }, []);
+
+  const openHistoryModal = React.useCallback(() => {
+    void loadHistory();
+    historyDialogRef.current?.showModal();
+  }, [loadHistory]);
 
   const handleFormatToggle = React.useCallback(() => {
     if (isFormatted) {
@@ -293,31 +354,6 @@ const App: React.FC = () => {
     );
   };
 
-  const renderHistoryTable = () => {
-    if (history.length === 0) return null;
-    return (
-      <div style={{ marginTop: '1rem' }}>
-        <h2>履歴</h2>
-        <table border={1} cellPadding={4}>
-          <thead>
-            <tr>
-              <th>時刻</th>
-              <th>SQL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {history.map((h, idx) => (
-              <tr key={idx}>
-                <td>{h.timestamp}</td>
-                <td>{h.sql}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
   return (
     <div
       style={{
@@ -329,43 +365,7 @@ const App: React.FC = () => {
       }}
     >
       <h1>PgAce</h1>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.5rem',
-          alignItems: 'center'
-        }}
-      >
-        <input
-          placeholder="host"
-          value={host}
-          onChange={(e) => setHost(e.target.value)}
-        />
-        <input
-          placeholder="port"
-          type="number"
-          value={port}
-          onChange={(e) => setPort(e.target.value)}
-        />
-        <input
-          placeholder="database"
-          value={database}
-          onChange={(e) => setDatabase(e.target.value)}
-        />
-        <input
-          placeholder="user"
-          value={user}
-          onChange={(e) => setUser(e.target.value)}
-        />
-        <input
-          placeholder="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button onClick={handleConnect}>Connect</button>
-      </div>
+      <button onClick={openConnectionModal}>Change Connection</button>
       <div
         style={{
           display: 'flex',
@@ -380,8 +380,11 @@ const App: React.FC = () => {
           style={{ width: '100%' }}
         />
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={handleQuery}>Run Query (F5)</button>
+          <button onClick={() => handleQuery()}>Run Query (F5)</button>
           <button onClick={handleFormatToggle}>Format (Ctrl+L)</button>
+          <button onClick={openHistoryModal} disabled={history.length === 0}>
+            History
+          </button>
           <button onClick={handleExportCsv} disabled={rows.length === 0}>
             Export CSV
           </button>
@@ -389,7 +392,95 @@ const App: React.FC = () => {
       </div>
       <div>{status}</div>
       {renderResultTable()}
-      {renderHistoryTable()}
+      <dialog ref={connDialogRef}>
+        <form method="dialog" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <h2>Connect</h2>
+          <input
+            placeholder="host"
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+          />
+          <input
+            placeholder="port"
+            type="number"
+            value={port}
+            onChange={(e) => setPort(e.target.value)}
+          />
+          <input
+            placeholder="database"
+            value={database}
+            onChange={(e) => setDatabase(e.target.value)}
+          />
+          <input
+            placeholder="user"
+            value={user}
+            onChange={(e) => setUser(e.target.value)}
+          />
+          <input
+            placeholder="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button type="button" onClick={handleConnect}>
+              Connect
+            </button>
+            <button type="button" onClick={() => connDialogRef.current?.close()}>
+              Close
+            </button>
+          </div>
+          {profiles.length > 0 && (
+            <div>
+              <h3>History</h3>
+              <ul>
+                {profiles.map((p, idx) => (
+                  <li key={idx} style={{ marginBottom: '0.25rem' }}>
+                    {p.host}:{p.port}/{p.database} ({p.user})
+                    <button
+                      type="button"
+                      style={{ marginLeft: '0.5rem' }}
+                      onClick={() => handleConnectProfile(p)}
+                    >
+                      Connect
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </form>
+      </dialog>
+      <dialog ref={historyDialogRef} style={{ minWidth: '500px' }}>
+        <h2>Query History</h2>
+        <table border={1} cellPadding={4} style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>SQL</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((h, idx) => (
+              <tr key={idx}>
+                <td>{h.timestamp}</td>
+                <td>{h.sql}</td>
+                <td>
+                  <button type="button" onClick={() => handleRunHistory(h)}>
+                    Run
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
+          <button type="button" onClick={() => historyDialogRef.current?.close()}>
+            Close
+          </button>
+        </div>
+      </dialog>
     </div>
   );
 };

@@ -1,4 +1,8 @@
-export type IpcChannel = 'db.connect' | 'db.query';
+export type IpcChannel =
+  | 'db.connect'
+  | 'db.query'
+  | 'history.list'
+  | 'profile.list';
 
 export interface DbConnectParams {
   host: string;
@@ -9,5 +13,10 @@ export interface DbConnectParams {
 }
 
 export interface DbQueryParams {
+  sql: string;
+}
+
+export interface HistoryEntry {
+  timestamp: string;
   sql: string;
 }
