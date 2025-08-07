@@ -16,8 +16,16 @@ const App: React.FC = () => {
   const [status, setStatus] = React.useState('Ready');
   const [rows, setRows] = React.useState<any[]>([]);
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
-  const [selectedRow, setSelectedRow] = React.useState<number | null>(null);
-  const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
+  const [rowSelection, setRowSelection] = React.useState<{
+    start: number;
+    end: number;
+  } | null>(null);
+  const [colSelection, setColSelection] = React.useState<{
+    start: number;
+    end: number;
+  } | null>(null);
+  const [isSelectingRow, setIsSelectingRow] = React.useState(false);
+  const [isSelectingCol, setIsSelectingCol] = React.useState(false);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
 
   const loadHistory = React.useCallback(async () => {
@@ -56,15 +64,15 @@ const App: React.FC = () => {
         });
         return next;
       });
-      setSelectedRow(null);
-      setSelectedCol(null);
+      setRowSelection(null);
+      setColSelection(null);
       setStatus(`${r.length} rows`);
       await loadHistory();
     } catch (e: any) {
       setStatus(e.message);
       setRows([]);
-      setSelectedRow(null);
-      setSelectedCol(null);
+      setRowSelection(null);
+      setColSelection(null);
     }
   };
 
@@ -73,6 +81,7 @@ const App: React.FC = () => {
     column: string
   ) => {
     e.preventDefault();
+    e.stopPropagation();
     const startX = e.clientX;
     const startWidth = colWidths[column] ?? 150;
     const onMouseMove = (ev: MouseEvent) => {
@@ -90,9 +99,56 @@ const App: React.FC = () => {
     document.addEventListener('mouseup', onMouseUp);
   };
 
+  const handleRowMouseDown = (idx: number) => {
+    setRowSelection({ start: idx, end: idx });
+    setIsSelectingRow(true);
+    setColSelection(null);
+  };
+
+  const handleRowMouseEnter = (idx: number) => {
+    if (!isSelectingRow || !rowSelection) return;
+    setRowSelection({ start: rowSelection.start, end: idx });
+  };
+
+  const handleColMouseDown = (
+    e: React.MouseEvent<HTMLTableCellElement>,
+    idx: number
+  ) => {
+    e.preventDefault();
+    setColSelection({ start: idx, end: idx });
+    setIsSelectingCol(true);
+    setRowSelection(null);
+  };
+
+  const handleColMouseEnter = (idx: number) => {
+    if (!isSelectingCol || !colSelection) return;
+    setColSelection({ start: colSelection.start, end: idx });
+  };
+
+  React.useEffect(() => {
+    const onMouseUp = () => {
+      setIsSelectingRow(false);
+      setIsSelectingCol(false);
+    };
+    document.addEventListener('mouseup', onMouseUp);
+    return () => document.removeEventListener('mouseup', onMouseUp);
+  }, []);
+
   const renderResultTable = () => {
     if (rows.length === 0) return null;
     const columns = Object.keys(rows[0]);
+    const isRowSelected = (idx: number) => {
+      if (!rowSelection) return false;
+      const s = Math.min(rowSelection.start, rowSelection.end);
+      const e = Math.max(rowSelection.start, rowSelection.end);
+      return idx >= s && idx <= e;
+    };
+    const isColSelected = (idx: number) => {
+      if (!colSelection) return false;
+      const s = Math.min(colSelection.start, colSelection.end);
+      const e = Math.max(colSelection.start, colSelection.end);
+      return idx >= s && idx <= e;
+    };
     return (
       <div style={{ marginTop: '1rem', overflow: 'auto' }}>
         <table
@@ -107,18 +163,16 @@ const App: React.FC = () => {
           <thead>
             <tr>
               <th style={{ border: '1px solid #ccc', background: '#eee' }} />
-              {columns.map((c) => (
+              {columns.map((c, idx) => (
                 <th
                   key={c}
                   style={{
                     position: 'relative',
                     border: '1px solid #ccc',
-                    background: '#eee'
+                    background: isColSelected(idx) ? '#b3d7ff' : '#eee'
                   }}
-                  onClick={() => {
-                    setSelectedRow(null);
-                    setSelectedCol(c);
-                  }}
+                  onMouseDown={(e) => handleColMouseDown(e, idx)}
+                  onMouseEnter={() => handleColMouseEnter(idx)}
                 >
                   {c}
                   <div
@@ -145,23 +199,21 @@ const App: React.FC = () => {
                     background: '#eee',
                     textAlign: 'right',
                     padding: '0 4px',
-                    backgroundColor: selectedRow === idx ? '#b3d7ff' : '#eee'
+                    backgroundColor: isRowSelected(idx) ? '#b3d7ff' : '#eee'
                   }}
-                  onClick={() => {
-                    setSelectedCol(null);
-                    setSelectedRow(idx);
-                  }}
+                  onMouseDown={() => handleRowMouseDown(idx)}
+                  onMouseEnter={() => handleRowMouseEnter(idx)}
                 >
                   {idx + 1}
                 </th>
-                {columns.map((c) => (
+                {columns.map((c, cIdx) => (
                   <td
                     key={c}
                     style={{
                       border: '1px solid #ccc',
                       padding: '0 4px',
                       backgroundColor:
-                        selectedRow === idx || selectedCol === c
+                        isRowSelected(idx) || isColSelected(cIdx)
                           ? '#d7ebff'
                           : 'transparent'
                     }}
