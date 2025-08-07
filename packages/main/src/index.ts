@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import fs from 'node:fs/promises';
 import { Client } from 'pg';
 import type { DbConnectParams, DbQueryParams, HistoryEntry } from './ipc';
@@ -28,16 +29,25 @@ const createWindow = () => {
     width: 1024,
     height: 768,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/dist/index.js'),
+      // __dirname points to packages/main/dist when compiled
+      // move up to the packages directory to access the preload bundle
+      preload: path.join(__dirname, '../../preload/dist/index.js'),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false
     }
   });
 
-  const url = process.env.VITE_DEV_SERVER_URL ||
-    `file://${path.join(__dirname, '../renderer/index.html')}`;
-  mainWindow.loadURL(url);
+  if (app.isPackaged) {
+    // load the built renderer HTML from the renderer's dist directory
+    const fileUrl = pathToFileURL(
+      path.join(__dirname, '../../renderer/dist/index.html')
+    ).toString();
+    mainWindow.loadURL(fileUrl);
+  } else {
+    // during development, load the Vite dev server
+    mainWindow.loadURL('http://localhost:5173');
+  }
 };
 
 app.whenReady().then(() => {
