@@ -148,86 +148,59 @@ const ResultGrid: React.FC = () => {
     </div>
   );
 };
-type Panel = 'db' | 'sql' | 'editor' | 'result';
+
+const PropertyPanel: React.FC = () => (
+  <div style={{ padding: '8px' }}>プロパティ（未実装）</div>
+);
+
+const PanelWrapper: React.FC<{ title: string; children: React.ReactNode }> = ({
+  title,
+  children
+}) => (
+  <div
+    style={{
+      flex: 1,
+      border: '1px solid #ccc',
+      margin: '4px',
+      display: 'flex',
+      flexDirection: 'column'
+    }}
+  >
+    <div style={{ background: '#eee', padding: '4px' }}>{title}</div>
+    <div style={{ flex: 1, overflow: 'auto' }}>{children}</div>
+  </div>
+);
 
 const App: React.FC = () => {
-  const [panels, setPanels] = React.useState<Panel[]>([
-    'db',
-    'editor',
-    'result',
-    'sql'
-  ]);
-  const [dragPanel, setDragPanel] = React.useState<Panel | null>(null);
   const [rows, setRows] = React.useState<any[]>([]);
-
-  const handleDragStart = (p: Panel) => () => {
-    setDragPanel(p);
-  };
-
-  const handleDrop = (p: Panel) => () => {
-    if (dragPanel === null || dragPanel === p) return;
-    setPanels((prev) => {
-      const next = [...prev];
-      const from = next.indexOf(dragPanel);
-      const to = next.indexOf(p);
-      next.splice(from, 1);
-      next.splice(to, 0, dragPanel);
-      return next;
-    });
-    setDragPanel(null);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
-
-  const renderPanel = (p: Panel) => {
-    let title: string;
-    let content: React.ReactNode;
-    switch (p) {
-      case 'db':
-        title = 'DBエクスプローラ';
-        content = <DbExplorer />;
-        break;
-      case 'sql':
-        title = 'SQLエクスプローラ';
-        content = <SqlExplorer />;
-        break;
-      case 'editor':
-        title = 'SQLエディタ';
-        content = <SqlEditor />;
-        break;
-      case 'result':
-        title = '結果';
-        content = <ResultGrid />;
-        break;
-      default:
-        return null;
-    }
-    return (
-      <div
-        key={p}
-        draggable
-        onDragStart={handleDragStart(p)}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop(p)}
-        style={{
-          flex: 1,
-          border: '1px solid #ccc',
-          margin: '4px',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        <div style={{ background: '#eee', padding: '4px', cursor: 'move' }}>
-          {title}
-        </div>
-        <div style={{ flex: 1, overflow: 'auto' }}>{content}</div>
-      </div>
-    );
-  };
 
   return (
     <ResultContext.Provider value={{ rows, setRows }}>
-      <div style={{ display: 'flex', height: '100vh' }}>{panels.map(renderPanel)}</div>
+      <div style={{ display: 'flex', height: '100vh' }}>
+        <div style={{ flexBasis: '20%', display: 'flex', flexDirection: 'column' }}>
+          <PanelWrapper title="DBエクスプローラ">
+            <DbExplorer />
+          </PanelWrapper>
+        </div>
+        <div style={{ flex: 1, display: 'flex' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <PanelWrapper title="SQLエディタ">
+              <SqlEditor />
+            </PanelWrapper>
+            <PanelWrapper title="結果">
+              <ResultGrid />
+            </PanelWrapper>
+          </div>
+          <div style={{ flexBasis: '25%', display: 'flex', flexDirection: 'column' }}>
+            <PanelWrapper title="SQLエクスプローラ">
+              <SqlExplorer />
+            </PanelWrapper>
+            <PanelWrapper title="プロパティ">
+              <PropertyPanel />
+            </PanelWrapper>
+          </div>
+        </div>
+      </div>
     </ResultContext.Provider>
   );
 };
