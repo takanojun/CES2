@@ -27,6 +27,7 @@ const App: React.FC = () => {
   const [isSelectingRow, setIsSelectingRow] = React.useState(false);
   const [isSelectingCol, setIsSelectingCol] = React.useState(false);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
+  const [isFormatted, setIsFormatted] = React.useState(false);
 
   const loadHistory = React.useCallback(async () => {
     const list = await window.pgace.historyList();
@@ -37,7 +38,7 @@ const App: React.FC = () => {
     void loadHistory();
   }, [loadHistory]);
 
-  const handleConnect = async () => {
+  const handleConnect = React.useCallback(async () => {
     try {
       await window.pgace.connect({
         host,
@@ -50,9 +51,9 @@ const App: React.FC = () => {
     } catch (e: any) {
       setStatus(e.message);
     }
-  };
+  }, [host, port, database, user, password]);
 
-  const handleQuery = async () => {
+  const handleQuery = React.useCallback(async () => {
     try {
       const r = await window.pgace.query({ sql });
       setRows(r);
@@ -74,7 +75,59 @@ const App: React.FC = () => {
       setRowSelection(null);
       setColSelection(null);
     }
-  };
+  }, [sql, loadHistory]);
+
+  const handleFormatToggle = React.useCallback(() => {
+    if (isFormatted) {
+      setSql((s) => s.replace(/\s+/g, ' ').trim());
+    } else {
+      const formatted = sql
+        .replace(/\s+/g, ' ')
+        .replace(/(SELECT|FROM|WHERE|GROUP BY|ORDER BY|INSERT|INTO|VALUES|UPDATE|SET|DELETE|JOIN)/gi, '\n$1')
+        .replace(/\n\s+/g, '\n')
+        .trim();
+      setSql(formatted);
+    }
+    setIsFormatted(!isFormatted);
+  }, [sql, isFormatted]);
+
+  const handleExportCsv = React.useCallback(() => {
+    if (rows.length === 0) return;
+    const columns = Object.keys(rows[0]);
+    const csv = [
+      columns.join(','),
+      ...rows.map((r) =>
+        columns
+          .map((c) => {
+            const v = r[c];
+            return JSON.stringify(v ?? '');
+          })
+          .join(',')
+      )
+    ].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'result.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [rows]);
+
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F5') {
+        e.preventDefault();
+        void handleQuery();
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        handleFormatToggle();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleQuery, handleFormatToggle]);
 
   const handleMouseDown = (
     e: React.MouseEvent<HTMLDivElement>,
@@ -266,9 +319,24 @@ const App: React.FC = () => {
   };
 
   return (
-    <div>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+        padding: '1rem',
+        fontFamily: 'sans-serif'
+      }}
+    >
       <h1>PgAce</h1>
-      <div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
+          alignItems: 'center'
+        }}
+      >
         <input
           placeholder="host"
           value={host}
@@ -298,16 +366,28 @@ const App: React.FC = () => {
         />
         <button onClick={handleConnect}>Connect</button>
       </div>
-      <div>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem'
+        }}
+      >
         <textarea
           rows={4}
-          cols={40}
           value={sql}
           onChange={(e) => setSql(e.target.value)}
+          style={{ width: '100%' }}
         />
-        <button onClick={handleQuery}>Run Query</button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={handleQuery}>Run Query (F5)</button>
+          <button onClick={handleFormatToggle}>Format (Ctrl+L)</button>
+          <button onClick={handleExportCsv} disabled={rows.length === 0}>
+            Export CSV
+          </button>
+        </div>
       </div>
-      <div style={{ marginTop: '1rem' }}>{status}</div>
+      <div>{status}</div>
       {renderResultTable()}
       {renderHistoryTable()}
     </div>
