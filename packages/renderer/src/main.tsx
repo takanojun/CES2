@@ -16,6 +16,9 @@ const App: React.FC = () => {
   const [status, setStatus] = React.useState('Ready');
   const [rows, setRows] = React.useState<any[]>([]);
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
+  const [selectedRow, setSelectedRow] = React.useState<number | null>(null);
+  const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
+  const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
 
   const loadHistory = React.useCallback(async () => {
     const list = await window.pgace.historyList();
@@ -45,36 +48,132 @@ const App: React.FC = () => {
     try {
       const r = await window.pgace.query({ sql });
       setRows(r);
+      const cols = Object.keys(r[0] ?? {});
+      setColWidths((prev) => {
+        const next: Record<string, number> = { ...prev };
+        cols.forEach((c) => {
+          if (!(c in next)) next[c] = 150;
+        });
+        return next;
+      });
+      setSelectedRow(null);
+      setSelectedCol(null);
       setStatus(`${r.length} rows`);
       await loadHistory();
     } catch (e: any) {
       setStatus(e.message);
       setRows([]);
+      setSelectedRow(null);
+      setSelectedCol(null);
     }
+  };
+
+  const handleMouseDown = (
+    e: React.MouseEvent<HTMLDivElement>,
+    column: string
+  ) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = colWidths[column] ?? 150;
+    const onMouseMove = (ev: MouseEvent) => {
+      const diff = ev.clientX - startX;
+      setColWidths((prev) => ({
+        ...prev,
+        [column]: Math.max(30, startWidth + diff)
+      }));
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
   };
 
   const renderResultTable = () => {
     if (rows.length === 0) return null;
     const columns = Object.keys(rows[0]);
     return (
-      <table border={1} cellPadding={4} style={{ marginTop: '1rem' }}>
-        <thead>
-          <tr>
+      <div style={{ marginTop: '1rem', overflow: 'auto' }}>
+        <table
+          style={{ borderCollapse: 'collapse', userSelect: 'none' }}
+        >
+          <colgroup>
+            <col style={{ width: 40 }} />
             {columns.map((c) => (
-              <th key={c}>{c}</th>
+              <col key={c} style={{ width: colWidths[c] ?? 150 }} />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => (
-            <tr key={idx}>
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={{ border: '1px solid #ccc', background: '#eee' }} />
               {columns.map((c) => (
-                <td key={c}>{String(row[c])}</td>
+                <th
+                  key={c}
+                  style={{
+                    position: 'relative',
+                    border: '1px solid #ccc',
+                    background: '#eee'
+                  }}
+                  onClick={() => {
+                    setSelectedRow(null);
+                    setSelectedCol(c);
+                  }}
+                >
+                  {c}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      width: 4,
+                      height: '100%',
+                      cursor: 'col-resize'
+                    }}
+                    onMouseDown={(e) => handleMouseDown(e, c)}
+                  />
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={idx}>
+                <th
+                  style={{
+                    border: '1px solid #ccc',
+                    background: '#eee',
+                    textAlign: 'right',
+                    padding: '0 4px',
+                    backgroundColor: selectedRow === idx ? '#b3d7ff' : '#eee'
+                  }}
+                  onClick={() => {
+                    setSelectedCol(null);
+                    setSelectedRow(idx);
+                  }}
+                >
+                  {idx + 1}
+                </th>
+                {columns.map((c) => (
+                  <td
+                    key={c}
+                    style={{
+                      border: '1px solid #ccc',
+                      padding: '0 4px',
+                      backgroundColor:
+                        selectedRow === idx || selectedCol === c
+                          ? '#d7ebff'
+                          : 'transparent'
+                    }}
+                  >
+                    {String(row[c])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   };
 
