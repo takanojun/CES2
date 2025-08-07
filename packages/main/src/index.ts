@@ -7,7 +7,8 @@ import type {
   DbConnectParams,
   DbQueryParams,
   HistoryEntry,
-  SqlFile
+  SqlFile,
+  SqlFolder
 } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
@@ -147,19 +148,27 @@ ipcMain.handle('meta.tables', async (_event, params: { schema: string }) => {
   );
   return res.rows.map((r: any) => r.table_name as string);
 });
-ipcMain.handle('fs.openFolder', async () => {
+ipcMain.handle('fs.openFolder', async (_event, dir?: string): Promise<SqlFolder> => {
+  const readDir = async (d: string): Promise<SqlFolder> => {
+    const entries = await fs.readdir(d, { withFileTypes: true });
+    const files: SqlFile[] = await Promise.all(
+      entries
+        .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.sql'))
+        .map(async (e) => {
+          const p = path.join(d, e.name);
+          const content = await fs.readFile(p, 'utf8');
+          return { name: e.name, content };
+        })
+    );
+    return { dir: d, files };
+  };
+
+  if (dir) {
+    return readDir(dir);
+  }
+
   const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
-  if (result.canceled || result.filePaths.length === 0) return [];
-  const dir = result.filePaths[0];
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  const files: SqlFile[] = await Promise.all(
-    entries
-      .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.sql'))
-      .map(async (e) => {
-        const p = path.join(dir, e.name);
-        const content = await fs.readFile(p, 'utf8');
-        return { name: e.name, content };
-      })
-  );
-  return files;
+  if (result.canceled || result.filePaths.length === 0) return { dir: '', files: [] };
+  const d = result.filePaths[0];
+  return readDir(d);
 });

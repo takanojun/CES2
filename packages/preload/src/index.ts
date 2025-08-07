@@ -3,7 +3,8 @@ import type {
   DbConnectParams,
   DbQueryParams,
   HistoryEntry,
-  SqlFile
+  SqlFile,
+  SqlFolder
 } from './ipc';
 
 const api = {
@@ -14,8 +15,8 @@ const api = {
     ipcRenderer.invoke('profile.list') as Promise<DbConnectParams[]>,
   listTables: (schema: string) =>
     ipcRenderer.invoke('meta.tables', { schema }) as Promise<string[]>,
-  openSqlFolder: () =>
-    ipcRenderer.invoke('fs.openFolder') as Promise<SqlFile[]>
+  openSqlFolder: (dir?: string) =>
+    ipcRenderer.invoke('fs.openFolder', dir) as Promise<SqlFolder>
 };
 
 contextBridge.exposeInMainWorld('pgace', api);
