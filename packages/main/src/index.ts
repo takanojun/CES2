@@ -26,7 +26,6 @@ const ERROR_LOG = path.join(APPDATA_DIR, 'error.log');
 const CRASH_DIR = path.join(APPDATA_DIR, 'crashes');
 const ELECTRON_LOG = path.join(APPDATA_DIR, 'electron.log');
 
-
 app.commandLine.appendSwitch('enable-logging');
 app.commandLine.appendSwitch('log-file', ELECTRON_LOG);
 
