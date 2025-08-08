@@ -1,8 +1,10 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, crashReporter } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs/promises';
-import { Client } from 'pg';
+import pg from 'pg';
+type PgClient = InstanceType<typeof pg.Client>;
+const { Client: PgClientCtor } = pg;
 import type {
   DbConnectParams,
   DbQueryParams,
@@ -12,12 +14,74 @@ import type {
 } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
-let db: any = null;
+let db: PgClient | null = null;
+let gpuCrashCount = 0;
+const MAX_GPU_RELOADS = 3;
 
 const APPDATA_DIR = path.join(app.getAppPath(), 'appdata');
 const HISTORY_FILE = path.join(APPDATA_DIR, 'history.log');
 const HISTORY_MAX = 500;
 const CONFIG_FILE = path.join(APPDATA_DIR, 'config.json');
+const ERROR_LOG = path.join(APPDATA_DIR, 'error.log');
+const CRASH_DIR = path.join(APPDATA_DIR, 'crashes');
+const ELECTRON_LOG = path.join(APPDATA_DIR, 'electron.log');
+
+const MAX_ROWS = 1000;
+const MAX_CELL_LENGTH = 1000;
+
+app.commandLine.appendSwitch('enable-logging');
+app.commandLine.appendSwitch('log-file', ELECTRON_LOG);
+
+app.setPath('crashDumps', CRASH_DIR);
+crashReporter.start({ submitURL: '', uploadToServer: false });
+
+const writeLog = async (line: string) => {
+  try {
+    await fs.mkdir(APPDATA_DIR, { recursive: true });
+    await fs.appendFile(ERROR_LOG, line + '\n', 'utf8');
+  } catch {
+    // ignore logging errors
+  }
+  console.error(line);
+};
+
+const logInfo = async (msg: string) => {
+  await writeLog(`${new Date().toISOString()} ${msg}`);
+};
+
+const logError = async (msg: string, err?: unknown) => {
+  const detail =
+    err instanceof Error
+      ? err.stack ?? err.message
+      : err !== undefined
+      ? JSON.stringify(err)
+      : '';
+  await writeLog(
+    `${new Date().toISOString()} ${msg}${detail ? ` ${detail}` : ''}`
+  );
+};
+
+process.on('uncaughtException', (err) => {
+  void logError('uncaughtException', err);
+});
+process.on('unhandledRejection', (reason) => {
+  void logError('unhandledRejection', reason);
+});
+
+app.on('child-process-gone', async (_event, details) => {
+  await logError('child-process-gone', details);
+  if (details.type === 'GPU') {
+    gpuCrashCount += 1;
+    if (gpuCrashCount <= MAX_GPU_RELOADS) {
+      mainWindow?.reload();
+    } else {
+      dialog.showErrorBox(
+        'GPU process crashed',
+        'GPUプロセスが繰り返しクラッシュしました。アプリケーションを再起動してください。'
+      );
+    }
+  }
+});
 
 interface Config {
   profiles: DbConnectParams[];
@@ -77,6 +141,11 @@ const createWindow = () => {
     }
   });
 
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    void logError('render-process-gone', details);
+    mainWindow?.reload();
+  });
+
   if (app.isPackaged) {
     // load the built renderer HTML from the renderer's dist directory
     const fileUrl = pathToFileURL(
@@ -124,23 +193,59 @@ ipcMain.handle('db.connect', async (_event, params: DbConnectParams) => {
   if (db) {
     await db.end().catch(() => undefined);
   }
-  db = new Client({
+  db = new PgClientCtor({
     host: params.host,
     port: params.port,
     database: params.database,
     user: params.user,
     password: params.password
   });
-  await db.connect();
+  try {
+    await logInfo(
+      `db.connect start host=${params.host} port=${params.port} db=${params.database}`
+    );
+    await db.connect();
+    await logInfo('db.connect success');
+  } catch (e) {
+    await logError('db.connect error', e);
+    throw e;
+  }
   await saveProfile(params);
   return 'connected';
 });
 
 ipcMain.handle('db.query', async (_event, params: DbQueryParams) => {
   if (!db) throw new Error('not connected');
-  const res = await db.query(params.sql);
-  await appendHistory(params.sql);
-  return res.rows;
+  await logInfo(`db.query start sql=${params.sql}`);
+  const start = Date.now();
+  try {
+    const res = await db.query(params.sql);
+    const duration = Date.now() - start;
+    const rawRows = res.rows;
+    await logInfo(
+      `db.query success rows=${rawRows.length} duration=${duration}ms`
+    );
+    const limited = rawRows.slice(0, MAX_ROWS).map((row: any) => {
+      const obj: Record<string, string> = {};
+      for (const [k, v] of Object.entries(row)) {
+        let val = v === null || v === undefined ? '' : String(v);
+        if (val.length > MAX_CELL_LENGTH)
+          val = val.slice(0, MAX_CELL_LENGTH);
+        obj[k] = val;
+      }
+      return obj;
+    });
+    if (rawRows.length > MAX_ROWS) {
+      await logInfo(
+        `db.query truncated rows from ${rawRows.length} to ${limited.length}`
+      );
+    }
+    await appendHistory(params.sql);
+    return limited;
+  } catch (e) {
+    await logError('db.query error', e);
+    throw e;
+  }
 });
 
 ipcMain.handle('profile.list', async () => {
@@ -161,12 +266,20 @@ ipcMain.handle('history.list', async () => {
   }
 });
 ipcMain.handle('meta.tables', async (_event, params: { schema: string }) => {
-  if (!db) throw new Error('not connected');
-  const res = await db.query(
-    'SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name',
-    [params.schema]
-  );
-  return res.rows.map((r: any) => r.table_name as string);
+  if (!db) return [];
+  try {
+    await logInfo(`meta.tables start schema=${params.schema}`);
+    const res = await db.query(
+      'SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name',
+      [params.schema]
+    );
+    const rows = res.rows.map((r: any) => r.table_name as string);
+    await logInfo(`meta.tables success rows=${rows.length}`);
+    return rows;
+  } catch (e) {
+    await logError('meta.tables error', e);
+    return [];
+  }
 });
 ipcMain.handle('fs.openFolder', async (_event, dir?: string): Promise<SqlFolder> => {
   const readDir = async (d: string): Promise<SqlFolder> => {
