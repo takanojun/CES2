@@ -175,7 +175,13 @@ const createWindow = () => {
   });
 };
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  try {
+    const info = await app.getGPUInfo('basic');
+    await logInfo(`gpu.info ${JSON.stringify(info)}`);
+  } catch (e) {
+    await logError('gpu.info error', e);
+  }
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -184,6 +190,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+ipcMain.on('renderer.error', (_event, msg: string) => {
+  void logError('renderer.error', msg);
 });
 
 ipcMain.handle('db.connect', async (_event, params: DbConnectParams) => {

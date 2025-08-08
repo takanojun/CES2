@@ -2,6 +2,20 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import ConnectDialog from './ConnectDialog';
 
+window.addEventListener('error', (e) => {
+  window.pgace.logError(
+    e.error instanceof Error ? e.error.stack ?? e.error.message : e.message
+  );
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  window.pgace.logError(
+    e.reason instanceof Error
+      ? e.reason.stack ?? e.reason.message
+      : String(e.reason)
+  );
+});
+
 interface SqlFile {
   name: string;
   content: string;
@@ -18,6 +32,28 @@ interface ResultContextValue {
 }
 
 const ResultContext = React.createContext<ResultContextValue | null>(null);
+
+class RootErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: any) {
+    window.pgace.logError(error?.stack ?? String(error));
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ padding: '8px' }}>予期しないエラーが発生しました</div>;
+    }
+    return this.props.children;
+  }
+}
 
 const DbExplorer: React.FC = () => {
   const [tables, setTables] = React.useState<string[]>([]);
@@ -286,6 +322,8 @@ const App: React.FC = () => {
 };
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <App />
+  <RootErrorBoundary>
+    <App />
+  </RootErrorBoundary>
 );
 
