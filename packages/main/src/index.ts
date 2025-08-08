@@ -26,9 +26,6 @@ const ERROR_LOG = path.join(APPDATA_DIR, 'error.log');
 const CRASH_DIR = path.join(APPDATA_DIR, 'crashes');
 const ELECTRON_LOG = path.join(APPDATA_DIR, 'electron.log');
 
-const MAX_ROWS = 1000;
-const MAX_CELL_LENGTH = 1000;
-
 app.commandLine.appendSwitch('enable-logging');
 app.commandLine.appendSwitch('log-file', ELECTRON_LOG);
 
@@ -221,27 +218,10 @@ ipcMain.handle('db.query', async (_event, params: DbQueryParams) => {
   try {
     const res = await db.query(params.sql);
     const duration = Date.now() - start;
-    const rawRows = res.rows;
-    await logInfo(
-      `db.query success rows=${rawRows.length} duration=${duration}ms`
-    );
-    const limited = rawRows.slice(0, MAX_ROWS).map((row: any) => {
-      const obj: Record<string, string> = {};
-      for (const [k, v] of Object.entries(row)) {
-        let val = v === null || v === undefined ? '' : String(v);
-        if (val.length > MAX_CELL_LENGTH)
-          val = val.slice(0, MAX_CELL_LENGTH);
-        obj[k] = val;
-      }
-      return obj;
-    });
-    if (rawRows.length > MAX_ROWS) {
-      await logInfo(
-        `db.query truncated rows from ${rawRows.length} to ${limited.length}`
-      );
-    }
+    const rows = res.rows;
+    await logInfo(`db.query success rows=${rows.length} duration=${duration}ms`);
     await appendHistory(params.sql);
-    return limited;
+    return rows;
   } catch (e) {
     await logError('db.query error', e);
     throw e;

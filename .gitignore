@@ -4,3 +4,4 @@ release/
 appdata/*
 !appdata/.gitkeep
 !appdata/config.example.json
+*.tsbuildinfo
