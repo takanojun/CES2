@@ -36,9 +36,18 @@ const DbExplorer: React.FC = () => {
   }, [loadTables]);
 
   return (
-    <div style={{ padding: '8px' }}>
-      <button onClick={loadTables}>更新</button>
-      <ul>
+    <div
+      style={{
+        padding: '8px',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%'
+      }}
+    >
+      <button onClick={loadTables} style={{ marginBottom: '8px' }}>
+        更新
+      </button>
+      <ul style={{ overflow: 'auto', flex: 1, margin: 0, paddingLeft: '16px' }}>
         {tables.map((t) => (
           <li key={t}>{t}</li>
         ))}
@@ -116,29 +125,88 @@ const ResultGrid: React.FC = () => {
   if (!ctx) return null;
   const { rows } = ctx;
 
+  const [selectedRow, setSelectedRow] = React.useState<number | null>(null);
+  const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
+  const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
+
   if (rows.length === 0) {
     return <div style={{ padding: '8px' }}>結果なし</div>;
   }
 
   const columns = Object.keys(rows[0]);
 
+  const startResize = React.useCallback(
+    (col: string, e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startWidth = colWidths[col] ?? 120;
+      const onMouseMove = (ev: MouseEvent) => {
+        setColWidths((w) => ({
+          ...w,
+          [col]: Math.max(50, startWidth + ev.clientX - startX)
+        }));
+      };
+      const onMouseUp = () => {
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    },
+    [colWidths]
+  );
+
   return (
     <div style={{ overflow: 'auto', padding: '8px', height: '100%' }}>
-      <table style={{ borderCollapse: 'collapse' }}>
+      <table style={{ borderCollapse: 'collapse', width: 'max-content' }}>
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c} style={{ border: '1px solid #ccc', padding: '4px' }}>
+              <th
+                key={c}
+                onClick={() => setSelectedCol(c)}
+                style={{
+                  border: '1px solid #ccc',
+                  padding: '4px',
+                  position: 'relative',
+                  width: colWidths[c] ?? 120,
+                  background: selectedCol === c ? '#d0e7ff' : undefined,
+                  userSelect: 'none'
+                }}
+              >
                 {c}
+                <div
+                  onMouseDown={(e) => startResize(c, e)}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    width: '5px',
+                    height: '100%',
+                    cursor: 'col-resize'
+                  }}
+                />
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i}>
+            <tr key={i} onClick={() => setSelectedRow(i)}>
               {columns.map((c) => (
-                <td key={c} style={{ border: '1px solid #ccc', padding: '4px' }}>
+                <td
+                  key={c}
+                  style={{
+                    border: '1px solid #ccc',
+                    padding: '4px',
+                    width: colWidths[c] ?? 120,
+                    background:
+                      selectedRow === i || selectedCol === c
+                        ? '#d0e7ff'
+                        : undefined
+                  }}
+                >
                   {String(row[c])}
                 </td>
               ))}
