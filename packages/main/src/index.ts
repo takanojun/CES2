@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, crashReporter } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs/promises';
@@ -19,20 +19,40 @@ const HISTORY_FILE = path.join(APPDATA_DIR, 'history.log');
 const HISTORY_MAX = 500;
 const CONFIG_FILE = path.join(APPDATA_DIR, 'config.json');
 const ERROR_LOG = path.join(APPDATA_DIR, 'error.log');
+const CRASH_DIR = path.join(APPDATA_DIR, 'crashes');
 
-const logError = async (msg: string) => {
+app.setPath('crashDumps', CRASH_DIR);
+crashReporter.start({ submitURL: '', uploadToServer: false });
+
+const logError = async (msg: string, err?: unknown) => {
+  const detail =
+    err instanceof Error
+      ? err.stack ?? err.message
+      : err !== undefined
+      ? JSON.stringify(err)
+      : '';
+  const line = `${new Date().toISOString()} ${msg}${detail ? ` ${detail}` : ''}`;
   try {
     await fs.mkdir(APPDATA_DIR, { recursive: true });
-    const line = `${new Date().toISOString()} ${msg}\n`;
-    await fs.appendFile(ERROR_LOG, line, 'utf8');
+    await fs.appendFile(ERROR_LOG, line + '\n', 'utf8');
   } catch {
     // ignore logging errors
   }
-  console.error(msg);
+  console.error(line);
 };
 
+process.on('uncaughtException', (err) => {
+  void logError('uncaughtException', err);
+});
+process.on('unhandledRejection', (reason) => {
+  void logError('unhandledRejection', reason);
+});
+
 app.on('child-process-gone', (_event, details) => {
-  void logError(`child-process-gone: type=${details.type} reason=${details.reason}`);
+  void logError('child-process-gone', details);
+  if (details.type === 'GPU') {
+    mainWindow?.reload();
+  }
 });
 
 interface Config {
@@ -94,7 +114,8 @@ const createWindow = () => {
   });
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    void logError(`render-process-gone: reason=${details.reason}`);
+    void logError('render-process-gone', details);
+    mainWindow?.reload();
   });
 
   if (app.isPackaged) {
@@ -154,7 +175,7 @@ ipcMain.handle('db.connect', async (_event, params: DbConnectParams) => {
   try {
     await db.connect();
   } catch (e) {
-    await logError(`db.connect error: ${e}`);
+    await logError('db.connect error', e);
     throw e;
   }
   await saveProfile(params);
@@ -168,7 +189,7 @@ ipcMain.handle('db.query', async (_event, params: DbQueryParams) => {
     await appendHistory(params.sql);
     return res.rows;
   } catch (e) {
-    await logError(`db.query error: ${e}`);
+    await logError('db.query error', e);
     throw e;
   }
 });
@@ -199,7 +220,7 @@ ipcMain.handle('meta.tables', async (_event, params: { schema: string }) => {
     );
     return res.rows.map((r: any) => r.table_name as string);
   } catch (e) {
-    await logError(`meta.tables error: ${e}`);
+    await logError('meta.tables error', e);
     return [];
   }
 });
