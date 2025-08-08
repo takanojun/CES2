@@ -101,9 +101,11 @@ const SqlEditor: React.FC = () => {
 
   const runQuery = React.useCallback(async () => {
     try {
-      const rows = await window.pgace.query({ sql });
-      setRows(rows);
+      const res = await window.pgace.query({ sql });
+      if (!Array.isArray(res)) throw new Error('invalid response');
+      setRows(res);
     } catch (e: any) {
+      console.error(e);
       setRows([{ error: String(e) }]);
     }
   }, [sql, setRows]);
@@ -129,7 +131,7 @@ const ResultGrid: React.FC = () => {
   const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
 
-  if (rows.length === 0) {
+  if (!Array.isArray(rows) || rows.length === 0) {
     return <div style={{ padding: '8px' }}>結果なし</div>;
   }
 
@@ -230,9 +232,9 @@ const PanelWrapper: React.FC<{ title: string; children: React.ReactNode }> = ({
     style={{
       flex: 1,
       border: '1px solid #ccc',
-      margin: '4px',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      overflow: 'hidden'
     }}
   >
     <div style={{ background: '#eee', padding: '4px' }}>{title}</div>
@@ -253,14 +255,14 @@ const App: React.FC = () => {
 
   return (
     <ResultContext.Provider value={{ rows, setRows }}>
-      <div style={{ display: 'flex', height: '100vh' }}>
-        <div style={{ flexBasis: '20%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', height: '100vh', gap: '4px', overflow: 'hidden' }}>
+        <div style={{ flexBasis: '20%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <PanelWrapper title="DBエクスプローラ">
             <DbExplorer />
           </PanelWrapper>
         </div>
-        <div style={{ flex: 1, display: 'flex' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, display: 'flex', gap: '4px', overflow: 'hidden' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <PanelWrapper title="SQLエディタ">
               <SqlEditor />
             </PanelWrapper>
@@ -268,7 +270,7 @@ const App: React.FC = () => {
               <ResultGrid />
             </PanelWrapper>
           </div>
-          <div style={{ flexBasis: '25%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flexBasis: '25%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <PanelWrapper title="SQLエクスプローラ">
               <SqlExplorer />
             </PanelWrapper>
