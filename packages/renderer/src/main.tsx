@@ -131,9 +131,9 @@ const SqlExplorer: React.FC = () => {
 
 const SqlEditor: React.FC = () => {
   const ctx = React.useContext(ResultContext);
+  const [sql, setSql] = React.useState('');
   if (!ctx) return null;
   const { setRows } = ctx;
-  const [sql, setSql] = React.useState('');
 
   const runQuery = React.useCallback(async () => {
     try {
@@ -160,9 +160,6 @@ const SqlEditor: React.FC = () => {
 
 const ResultGrid: React.FC = () => {
   const ctx = React.useContext(ResultContext);
-  if (!ctx) return null;
-  const { rows } = ctx;
-
   const [selectedRow, setSelectedRow] = React.useState<number | null>(null);
   const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
@@ -194,6 +191,14 @@ const ResultGrid: React.FC = () => {
     },
     [colWidths]
   );
+  if (!ctx) return null;
+  const { rows } = ctx;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return <div style={{ padding: '8px' }}>結果なし</div>;
+  }
+
+  const columns = Object.keys(rows[0]);
 
   return (
     <div style={{ overflow: 'auto', padding: '8px', height: '100%' }}>
