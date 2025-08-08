@@ -18,6 +18,22 @@ const APPDATA_DIR = path.join(app.getAppPath(), 'appdata');
 const HISTORY_FILE = path.join(APPDATA_DIR, 'history.log');
 const HISTORY_MAX = 500;
 const CONFIG_FILE = path.join(APPDATA_DIR, 'config.json');
+const ERROR_LOG = path.join(APPDATA_DIR, 'error.log');
+
+const logError = async (msg: string) => {
+  try {
+    await fs.mkdir(APPDATA_DIR, { recursive: true });
+    const line = `${new Date().toISOString()} ${msg}\n`;
+    await fs.appendFile(ERROR_LOG, line, 'utf8');
+  } catch {
+    // ignore logging errors
+  }
+  console.error(msg);
+};
+
+app.on('child-process-gone', (_event, details) => {
+  void logError(`child-process-gone: type=${details.type} reason=${details.reason}`);
+});
 
 interface Config {
   profiles: DbConnectParams[];
@@ -77,6 +93,10 @@ const createWindow = () => {
     }
   });
 
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    void logError(`render-process-gone: reason=${details.reason}`);
+  });
+
   if (app.isPackaged) {
     // load the built renderer HTML from the renderer's dist directory
     const fileUrl = pathToFileURL(
@@ -131,16 +151,26 @@ ipcMain.handle('db.connect', async (_event, params: DbConnectParams) => {
     user: params.user,
     password: params.password
   });
-  await db.connect();
+  try {
+    await db.connect();
+  } catch (e) {
+    await logError(`db.connect error: ${e}`);
+    throw e;
+  }
   await saveProfile(params);
   return 'connected';
 });
 
 ipcMain.handle('db.query', async (_event, params: DbQueryParams) => {
   if (!db) throw new Error('not connected');
-  const res = await db.query(params.sql);
-  await appendHistory(params.sql);
-  return res.rows;
+  try {
+    const res = await db.query(params.sql);
+    await appendHistory(params.sql);
+    return res.rows;
+  } catch (e) {
+    await logError(`db.query error: ${e}`);
+    throw e;
+  }
 });
 
 ipcMain.handle('profile.list', async () => {
@@ -161,12 +191,17 @@ ipcMain.handle('history.list', async () => {
   }
 });
 ipcMain.handle('meta.tables', async (_event, params: { schema: string }) => {
-  if (!db) throw new Error('not connected');
-  const res = await db.query(
-    'SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name',
-    [params.schema]
-  );
-  return res.rows.map((r: any) => r.table_name as string);
+  if (!db) return [];
+  try {
+    const res = await db.query(
+      'SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name',
+      [params.schema]
+    );
+    return res.rows.map((r: any) => r.table_name as string);
+  } catch (e) {
+    await logError(`meta.tables error: ${e}`);
+    return [];
+  }
 });
 ipcMain.handle('fs.openFolder', async (_event, dir?: string): Promise<SqlFolder> => {
   const readDir = async (d: string): Promise<SqlFolder> => {
