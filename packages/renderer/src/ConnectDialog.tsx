@@ -1,5 +1,13 @@
 import React from 'react';
 
+interface DbConnectParams {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -11,6 +19,29 @@ const ConnectDialog: React.FC<Props> = ({ open, onClose }) => {
   const [database, setDatabase] = React.useState('');
   const [user, setUser] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [profiles, setProfiles] = React.useState<DbConnectParams[]>([]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    void window.pgace
+      .profileList()
+      .then((list) => setProfiles(list))
+      .catch(() => setProfiles([]));
+  }, [open]);
+
+  const handleSelectProfile = React.useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const idx = Number(e.target.value);
+      const p = profiles[idx];
+      if (!p) return;
+      setHost(p.host);
+      setPort(p.port);
+      setDatabase(p.database);
+      setUser(p.user);
+      setPassword(p.password);
+    },
+    [profiles]
+  );
 
   const handleSubmit = React.useCallback(
     async (e: React.FormEvent) => {
@@ -47,6 +78,25 @@ const ConnectDialog: React.FC<Props> = ({ open, onClose }) => {
         onSubmit={handleSubmit}
         style={{ background: '#fff', padding: '16px', width: '300px' }}
       >
+        {profiles.length > 0 && (
+          <div>
+            <label>
+              履歴
+              <select
+                style={{ width: '100%' }}
+                defaultValue=""
+                onChange={handleSelectProfile}
+              >
+                <option value="" disabled>
+                  選択してください
+                </option>
+                {profiles.map((p, i) => (
+                  <option key={i} value={i}>{`${p.host}:${p.port}/${p.database} (${p.user})`}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
         <div>
           <label>
             Host
