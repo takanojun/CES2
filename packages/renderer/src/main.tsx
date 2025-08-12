@@ -166,6 +166,10 @@ const ResultGrid: React.FC = () => {
   const [lastRow, setLastRow] = React.useState<number | null>(null);
   const [lastCol, setLastCol] = React.useState<string | null>(null);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
+  const rowDragStart = React.useRef<number | null>(null);
+  const colDragStart = React.useRef<number | null>(null);
+  const rowDragMoved = React.useRef(false);
+  const colDragMoved = React.useRef(false);
 
   const startResize = React.useCallback(
     (col: string, e: React.MouseEvent<HTMLDivElement>) => {
@@ -194,8 +198,72 @@ const ResultGrid: React.FC = () => {
     [rows]
   );
 
+  const startRowDrag = React.useCallback(
+    (i: number, e: React.MouseEvent<HTMLTableRowElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      rowDragStart.current = i;
+      rowDragMoved.current = false;
+      setSelectedRows(new Set([i]));
+      setLastRow(i);
+      const onMouseUp = () => {
+        rowDragStart.current = null;
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+      window.addEventListener('mouseup', onMouseUp);
+    },
+    []
+  );
+
+  const handleRowEnter = React.useCallback(
+    (i: number) => {
+      if (rowDragStart.current === null) return;
+      rowDragMoved.current = true;
+      const start = rowDragStart.current;
+      const [s, e] = [Math.min(start, i), Math.max(start, i)];
+      const next = new Set<number>();
+      for (let idx = s; idx <= e; idx++) next.add(idx);
+      setSelectedRows(next);
+    },
+    [setSelectedRows]
+  );
+
+  const startColDrag = React.useCallback(
+    (c: string, i: number, e: React.MouseEvent<HTMLTableHeaderCellElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      colDragStart.current = i;
+      colDragMoved.current = false;
+      setSelectedCols(new Set([c]));
+      setLastCol(c);
+      const onMouseUp = () => {
+        colDragStart.current = null;
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+      window.addEventListener('mouseup', onMouseUp);
+    },
+    []
+  );
+
+  const handleColEnter = React.useCallback(
+    (i: number) => {
+      if (colDragStart.current === null) return;
+      colDragMoved.current = true;
+      const start = colDragStart.current;
+      const [s, e] = [Math.min(start, i), Math.max(start, i)];
+      const next = new Set<string>();
+      for (let idx = s; idx <= e; idx++) next.add(cols[idx]);
+      setSelectedCols(next);
+    },
+    [cols, setSelectedCols]
+  );
+
   const handleRowClick = React.useCallback(
     (i: number, e: React.MouseEvent<HTMLTableRowElement>) => {
+      if (rowDragMoved.current) {
+        rowDragMoved.current = false;
+        return;
+      }
       setSelectedRows((prev) => {
         const next = new Set(prev);
         if (e.shiftKey && lastRow !== null) {
@@ -218,6 +286,10 @@ const ResultGrid: React.FC = () => {
 
   const handleColClick = React.useCallback(
     (c: string, i: number, e: React.MouseEvent<HTMLTableHeaderCellElement>) => {
+      if (colDragMoved.current) {
+        colDragMoved.current = false;
+        return;
+      }
       setSelectedCols((prev) => {
         const next = new Set(prev);
         if (e.shiftKey && lastCol !== null) {
@@ -260,6 +332,8 @@ const ResultGrid: React.FC = () => {
               <th
                 key={c}
                 onClick={(e) => handleColClick(c, idx, e)}
+                onMouseDown={(e) => startColDrag(c, idx, e)}
+                onMouseEnter={() => handleColEnter(idx)}
                 style={{
                   border: '1px solid #ccc',
                   padding: '4px',
@@ -287,7 +361,12 @@ const ResultGrid: React.FC = () => {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} onClick={(e) => handleRowClick(i, e)}>
+            <tr
+              key={i}
+              onClick={(e) => handleRowClick(i, e)}
+              onMouseDown={(e) => startRowDrag(i, e)}
+              onMouseEnter={() => handleRowEnter(i)}
+            >
               {cols.map((c) => (
                 <td
                   key={c}
