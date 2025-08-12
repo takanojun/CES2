@@ -163,13 +163,7 @@ const ResultGrid: React.FC = () => {
   const [selectedRow, setSelectedRow] = React.useState<number | null>(null);
   const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
-
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return <div style={{ padding: '8px' }}>結果なし</div>;
-  }
-
-  const columns = Object.keys(rows[0]);
-
+  
   const startResize = React.useCallback(
     (col: string, e: React.MouseEvent<HTMLDivElement>) => {
       e.preventDefault();
@@ -198,14 +192,14 @@ const ResultGrid: React.FC = () => {
     return <div style={{ padding: '8px' }}>結果なし</div>;
   }
 
-  const columns = Object.keys(rows[0]);
+  const cols = Object.keys(rows[0]);
 
   return (
     <div style={{ overflow: 'auto', padding: '8px', height: '100%' }}>
       <table style={{ borderCollapse: 'collapse', width: 'max-content' }}>
         <thead>
           <tr>
-            {columns.map((c) => (
+            {cols.map((c) => (
               <th
                 key={c}
                 onClick={() => setSelectedCol(c)}
@@ -237,7 +231,7 @@ const ResultGrid: React.FC = () => {
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} onClick={() => setSelectedRow(i)}>
-              {columns.map((c) => (
+              {cols.map((c) => (
                 <td
                   key={c}
                   style={{
