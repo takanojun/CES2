@@ -160,12 +160,13 @@ const SqlEditor: React.FC = () => {
 
 const ResultGrid: React.FC = () => {
   const ctx = React.useContext(ResultContext);
+  const rows = ctx?.rows ?? [];
   const [selectedRows, setSelectedRows] = React.useState<Set<number>>(new Set());
   const [selectedCols, setSelectedCols] = React.useState<Set<string>>(new Set());
   const [lastRow, setLastRow] = React.useState<number | null>(null);
   const [lastCol, setLastCol] = React.useState<string | null>(null);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
-  
+
   const startResize = React.useCallback(
     (col: string, e: React.MouseEvent<HTMLDivElement>) => {
       e.preventDefault();
@@ -187,14 +188,11 @@ const ResultGrid: React.FC = () => {
     },
     [colWidths]
   );
-  if (!ctx) return null;
-  const { rows } = ctx;
 
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return <div style={{ padding: '8px' }}>結果なし</div>;
-  }
-
-  const cols = Object.keys(rows[0]);
+  const cols = React.useMemo(
+    () => (rows.length > 0 ? Object.keys(rows[0]) : []),
+    [rows]
+  );
 
   const handleRowClick = React.useCallback(
     (i: number, e: React.MouseEvent<HTMLTableRowElement>) => {
@@ -240,6 +238,11 @@ const ResultGrid: React.FC = () => {
     },
     [lastCol, cols]
   );
+
+  if (!ctx) return null;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return <div style={{ padding: '8px' }}>結果なし</div>;
+  }
 
   return (
     <div
