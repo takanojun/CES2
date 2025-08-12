@@ -160,8 +160,10 @@ const SqlEditor: React.FC = () => {
 
 const ResultGrid: React.FC = () => {
   const ctx = React.useContext(ResultContext);
-  const [selectedRow, setSelectedRow] = React.useState<number | null>(null);
-  const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
+  const [selectedRows, setSelectedRows] = React.useState<Set<number>>(new Set());
+  const [selectedCols, setSelectedCols] = React.useState<Set<string>>(new Set());
+  const [lastRow, setLastRow] = React.useState<number | null>(null);
+  const [lastCol, setLastCol] = React.useState<string | null>(null);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
   
   const startResize = React.useCallback(
@@ -194,21 +196,73 @@ const ResultGrid: React.FC = () => {
 
   const cols = Object.keys(rows[0]);
 
+  const handleRowClick = React.useCallback(
+    (i: number, e: React.MouseEvent<HTMLTableRowElement>) => {
+      setSelectedRows((prev) => {
+        const next = new Set(prev);
+        if (e.shiftKey && lastRow !== null) {
+          next.clear();
+          const [start, end] = [Math.min(lastRow, i), Math.max(lastRow, i)];
+          for (let idx = start; idx <= end; idx++) next.add(idx);
+        } else if (e.ctrlKey || e.metaKey) {
+          next.has(i) ? next.delete(i) : next.add(i);
+          setLastRow(i);
+        } else {
+          next.clear();
+          next.add(i);
+          setLastRow(i);
+        }
+        return next;
+      });
+    },
+    [lastRow]
+  );
+
+  const handleColClick = React.useCallback(
+    (c: string, i: number, e: React.MouseEvent<HTMLTableHeaderCellElement>) => {
+      setSelectedCols((prev) => {
+        const next = new Set(prev);
+        if (e.shiftKey && lastCol !== null) {
+          next.clear();
+          const startIndex = cols.indexOf(lastCol);
+          const [start, end] = [Math.min(startIndex, i), Math.max(startIndex, i)];
+          for (let idx = start; idx <= end; idx++) next.add(cols[idx]);
+        } else if (e.ctrlKey || e.metaKey) {
+          next.has(c) ? next.delete(c) : next.add(c);
+          setLastCol(c);
+        } else {
+          next.clear();
+          next.add(c);
+          setLastCol(c);
+        }
+        return next;
+      });
+    },
+    [lastCol, cols]
+  );
+
   return (
-    <div style={{ overflow: 'auto', padding: '8px', height: '100%' }}>
+    <div
+      style={{
+        overflowX: 'auto',
+        overflowY: 'auto',
+        padding: '8px',
+        height: '100%'
+      }}
+    >
       <table style={{ borderCollapse: 'collapse', width: 'max-content' }}>
         <thead>
           <tr>
-            {cols.map((c) => (
+            {cols.map((c, idx) => (
               <th
                 key={c}
-                onClick={() => setSelectedCol(c)}
+                onClick={(e) => handleColClick(c, idx, e)}
                 style={{
                   border: '1px solid #ccc',
                   padding: '4px',
                   position: 'relative',
                   width: colWidths[c] ?? 120,
-                  background: selectedCol === c ? '#d0e7ff' : undefined,
+                  background: selectedCols.has(c) ? '#d0e7ff' : undefined,
                   userSelect: 'none'
                 }}
               >
@@ -230,7 +284,7 @@ const ResultGrid: React.FC = () => {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} onClick={() => setSelectedRow(i)}>
+            <tr key={i} onClick={(e) => handleRowClick(i, e)}>
               {cols.map((c) => (
                 <td
                   key={c}
@@ -239,7 +293,7 @@ const ResultGrid: React.FC = () => {
                     padding: '4px',
                     width: colWidths[c] ?? 120,
                     background:
-                      selectedRow === i || selectedCol === c
+                      selectedRows.has(i) || selectedCols.has(c)
                         ? '#d0e7ff'
                         : undefined
                   }}
