@@ -2,6 +2,20 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import ConnectDialog from './ConnectDialog';
 
+window.addEventListener('error', (e) => {
+  window.pgace.logError(
+    e.error instanceof Error ? e.error.stack ?? e.error.message : e.message
+  );
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  window.pgace.logError(
+    e.reason instanceof Error
+      ? e.reason.stack ?? e.reason.message
+      : String(e.reason)
+  );
+});
+
 interface SqlFile {
   name: string;
   content: string;
@@ -18,6 +32,28 @@ interface ResultContextValue {
 }
 
 const ResultContext = React.createContext<ResultContextValue | null>(null);
+
+class RootErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: any) {
+    window.pgace.logError(error?.stack ?? String(error));
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ padding: '8px' }}>予期しないエラーが発生しました</div>;
+    }
+    return this.props.children;
+  }
+}
 
 const DbExplorer: React.FC = () => {
   const [tables, setTables] = React.useState<string[]>([]);
@@ -95,15 +131,17 @@ const SqlExplorer: React.FC = () => {
 
 const SqlEditor: React.FC = () => {
   const ctx = React.useContext(ResultContext);
+  const [sql, setSql] = React.useState('');
   if (!ctx) return null;
   const { setRows } = ctx;
-  const [sql, setSql] = React.useState('');
 
   const runQuery = React.useCallback(async () => {
     try {
-      const rows = await window.pgace.query({ sql });
-      setRows(rows);
+      const res = await window.pgace.query({ sql });
+      if (!Array.isArray(res)) throw new Error('invalid response');
+      setRows(res);
     } catch (e: any) {
+      console.error(e);
       setRows([{ error: String(e) }]);
     }
   }, [sql, setRows]);
@@ -122,19 +160,9 @@ const SqlEditor: React.FC = () => {
 
 const ResultGrid: React.FC = () => {
   const ctx = React.useContext(ResultContext);
-  if (!ctx) return null;
-  const { rows } = ctx;
-
   const [selectedRow, setSelectedRow] = React.useState<number | null>(null);
   const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
-
-  if (rows.length === 0) {
-    return <div style={{ padding: '8px' }}>結果なし</div>;
-  }
-
-  const columns = Object.keys(rows[0]);
-
   const startResize = React.useCallback(
     (col: string, e: React.MouseEvent<HTMLDivElement>) => {
       e.preventDefault();
@@ -156,13 +184,21 @@ const ResultGrid: React.FC = () => {
     },
     [colWidths]
   );
+  if (!ctx) return null;
+  const { rows } = ctx;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return <div style={{ padding: '8px' }}>結果なし</div>;
+  }
+
+  const cols = Object.keys(rows[0]);
 
   return (
     <div style={{ overflow: 'auto', padding: '8px', height: '100%' }}>
       <table style={{ borderCollapse: 'collapse', width: 'max-content' }}>
         <thead>
           <tr>
-            {columns.map((c) => (
+            {cols.map((c) => (
               <th
                 key={c}
                 onClick={() => setSelectedCol(c)}
@@ -194,7 +230,7 @@ const ResultGrid: React.FC = () => {
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} onClick={() => setSelectedRow(i)}>
-              {columns.map((c) => (
+              {cols.map((c) => (
                 <td
                   key={c}
                   style={{
@@ -230,9 +266,9 @@ const PanelWrapper: React.FC<{ title: string; children: React.ReactNode }> = ({
     style={{
       flex: 1,
       border: '1px solid #ccc',
-      margin: '4px',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      overflow: 'hidden'
     }}
   >
     <div style={{ background: '#eee', padding: '4px' }}>{title}</div>
@@ -253,14 +289,14 @@ const App: React.FC = () => {
 
   return (
     <ResultContext.Provider value={{ rows, setRows }}>
-      <div style={{ display: 'flex', height: '100vh' }}>
-        <div style={{ flexBasis: '20%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', height: '100vh', gap: '4px', overflow: 'hidden' }}>
+        <div style={{ flexBasis: '20%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <PanelWrapper title="DBエクスプローラ">
             <DbExplorer />
           </PanelWrapper>
         </div>
-        <div style={{ flex: 1, display: 'flex' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, display: 'flex', gap: '4px', overflow: 'hidden' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <PanelWrapper title="SQLエディタ">
               <SqlEditor />
             </PanelWrapper>
@@ -268,7 +304,7 @@ const App: React.FC = () => {
               <ResultGrid />
             </PanelWrapper>
           </div>
-          <div style={{ flexBasis: '25%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flexBasis: '25%', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <PanelWrapper title="SQLエクスプローラ">
               <SqlExplorer />
             </PanelWrapper>
@@ -284,6 +320,8 @@ const App: React.FC = () => {
 };
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <App />
+  <RootErrorBoundary>
+    <App />
+  </RootErrorBoundary>
 );
 

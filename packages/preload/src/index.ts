@@ -21,6 +21,9 @@ const api = {
     const wrapped = () => callback();
     ipcRenderer.on('open-connect', wrapped);
     return () => ipcRenderer.off('open-connect', wrapped);
+  },
+  logError: (msg: string) => {
+    ipcRenderer.send('renderer.error', msg);
   }
 };
 

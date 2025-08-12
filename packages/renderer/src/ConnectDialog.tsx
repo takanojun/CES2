@@ -20,6 +20,7 @@ const ConnectDialog: React.FC<Props> = ({ open, onClose }) => {
   const [user, setUser] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [profiles, setProfiles] = React.useState<DbConnectParams[]>([]);
+  const [showHistory, setShowHistory] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
@@ -29,19 +30,13 @@ const ConnectDialog: React.FC<Props> = ({ open, onClose }) => {
       .catch(() => setProfiles([]));
   }, [open]);
 
-  const handleSelectProfile = React.useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const idx = Number(e.target.value);
-      const p = profiles[idx];
-      if (!p) return;
-      setHost(p.host);
-      setPort(p.port);
-      setDatabase(p.database);
-      setUser(p.user);
-      setPassword(p.password);
-    },
-    [profiles]
-  );
+  const applyProfile = React.useCallback((p: DbConnectParams) => {
+    setHost(p.host);
+    setPort(p.port);
+    setDatabase(p.database);
+    setUser(p.user);
+    setPassword(p.password);
+  }, []);
 
   const handleSubmit = React.useCallback(
     async (e: React.FormEvent) => {
@@ -79,22 +74,10 @@ const ConnectDialog: React.FC<Props> = ({ open, onClose }) => {
         style={{ background: '#fff', padding: '16px', width: '300px' }}
       >
         {profiles.length > 0 && (
-          <div>
-            <label>
+          <div style={{ marginBottom: '8px' }}>
+            <button type="button" onClick={() => setShowHistory(true)}>
               履歴
-              <select
-                style={{ width: '100%' }}
-                defaultValue=""
-                onChange={handleSelectProfile}
-              >
-                <option value="" disabled>
-                  選択してください
-                </option>
-                {profiles.map((p, i) => (
-                  <option key={i} value={i}>{`${p.host}:${p.port}/${p.database} (${p.user})`}</option>
-                ))}
-              </select>
-            </label>
+            </button>
           </div>
         )}
         <div>
@@ -153,6 +136,53 @@ const ConnectDialog: React.FC<Props> = ({ open, onClose }) => {
           <button type="submit">接続</button>
         </div>
       </form>
+
+      {showHistory && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              padding: '16px',
+              width: '300px',
+              maxHeight: '80%',
+              overflow: 'auto'
+            }}
+          >
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {profiles.map((p, i) => (
+                <li key={i} style={{ marginBottom: '8px' }}>
+                  <button
+                    type="button"
+                    style={{ width: '100%' }}
+                    onClick={() => {
+                      applyProfile(p);
+                      setShowHistory(false);
+                    }}
+                  >{`${p.host}:${p.port}/${p.database} (${p.user})`}</button>
+                </li>
+              ))}
+            </ul>
+            <div style={{ textAlign: 'right', marginTop: '8px' }}>
+              <button type="button" onClick={() => setShowHistory(false)}>
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
