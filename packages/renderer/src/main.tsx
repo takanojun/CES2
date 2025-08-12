@@ -163,6 +163,7 @@ const ResultGrid: React.FC = () => {
   const [selectedRow, setSelectedRow] = React.useState<number | null>(null);
   const [selectedCol, setSelectedCol] = React.useState<string | null>(null);
   const [colWidths, setColWidths] = React.useState<Record<string, number>>({});
+  
   const startResize = React.useCallback(
     (col: string, e: React.MouseEvent<HTMLDivElement>) => {
       e.preventDefault();
